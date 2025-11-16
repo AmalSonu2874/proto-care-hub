@@ -14,16 +14,200 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      complaint_comments: {
+        Row: {
+          comment: string
+          complaint_id: string
+          created_at: string
+          id: string
+          is_admin: boolean
+          user_id: string
+        }
+        Insert: {
+          comment: string
+          complaint_id: string
+          created_at?: string
+          id?: string
+          is_admin?: boolean
+          user_id: string
+        }
+        Update: {
+          comment?: string
+          complaint_id?: string
+          created_at?: string
+          id?: string
+          is_admin?: boolean
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "complaint_comments_complaint_id_fkey"
+            columns: ["complaint_id"]
+            isOneToOne: false
+            referencedRelation: "complaints"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      complaint_timeline: {
+        Row: {
+          complaint_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          note: string | null
+          status: Database["public"]["Enums"]["complaint_status"]
+        }
+        Insert: {
+          complaint_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          status: Database["public"]["Enums"]["complaint_status"]
+        }
+        Update: {
+          complaint_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          status?: Database["public"]["Enums"]["complaint_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "complaint_timeline_complaint_id_fkey"
+            columns: ["complaint_id"]
+            isOneToOne: false
+            referencedRelation: "complaints"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      complaints: {
+        Row: {
+          attachment_url: string | null
+          category: Database["public"]["Enums"]["complaint_category"]
+          closed_at: string | null
+          created_at: string
+          description: string
+          id: string
+          priority: Database["public"]["Enums"]["complaint_priority"]
+          resolved_at: string | null
+          status: Database["public"]["Enums"]["complaint_status"]
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          attachment_url?: string | null
+          category: Database["public"]["Enums"]["complaint_category"]
+          closed_at?: string | null
+          created_at?: string
+          description: string
+          id?: string
+          priority?: Database["public"]["Enums"]["complaint_priority"]
+          resolved_at?: string | null
+          status?: Database["public"]["Enums"]["complaint_status"]
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          attachment_url?: string | null
+          category?: Database["public"]["Enums"]["complaint_category"]
+          closed_at?: string | null
+          created_at?: string
+          description?: string
+          id?: string
+          priority?: Database["public"]["Enums"]["complaint_priority"]
+          resolved_at?: string | null
+          status?: Database["public"]["Enums"]["complaint_status"]
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          batch_number: string | null
+          brotocare_id: string | null
+          created_at: string
+          dob: string | null
+          first_name: string
+          id: string
+          last_name: string
+          student_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          batch_number?: string | null
+          brotocare_id?: string | null
+          created_at?: string
+          dob?: string | null
+          first_name: string
+          id: string
+          last_name: string
+          student_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          batch_number?: string | null
+          brotocare_id?: string | null
+          created_at?: string
+          dob?: string | null
+          first_name?: string
+          id?: string
+          last_name?: string
+          student_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      is_admin: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "student" | "admin"
+      complaint_category:
+        | "academic"
+        | "hostel"
+        | "faculty_behaviour"
+        | "infrastructure"
+        | "other"
+      complaint_priority: "low" | "medium" | "high"
+      complaint_status:
+        | "submitted"
+        | "under_review"
+        | "in_process"
+        | "resolved"
+        | "closed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +334,23 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["student", "admin"],
+      complaint_category: [
+        "academic",
+        "hostel",
+        "faculty_behaviour",
+        "infrastructure",
+        "other",
+      ],
+      complaint_priority: ["low", "medium", "high"],
+      complaint_status: [
+        "submitted",
+        "under_review",
+        "in_process",
+        "resolved",
+        "closed",
+      ],
+    },
   },
 } as const
