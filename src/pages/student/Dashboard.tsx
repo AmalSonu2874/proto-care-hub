@@ -1,56 +1,53 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
+import type { Database } from "@/integrations/supabase/types";
 
-type ComplaintStatus = "submitted" | "under_review" | "in_process" | "resolved" | "closed";
-
-interface Complaint {
-  id: string;
-  title: string;
-  category: string;
-  priority: "low" | "medium" | "high";
-  status: ComplaintStatus;
-  date: string;
-  description: string;
-}
-
-const mockComplaints: Complaint[] = [
-  {
-    id: "1",
-    title: "Hostel WiFi not working",
-    category: "Infrastructure",
-    priority: "high",
-    status: "in_process",
-    date: "2025-01-15",
-    description: "WiFi has been down for 3 days"
-  },
-  {
-    id: "2",
-    title: "Need access to additional study materials",
-    category: "Academic",
-    priority: "medium",
-    status: "under_review",
-    date: "2025-01-14",
-    description: "Requesting DSA practice problems"
-  },
-  {
-    id: "3",
-    title: "Classroom AC not working",
-    category: "Infrastructure",
-    priority: "low",
-    status: "closed",
-    date: "2025-01-10",
-    description: "Fixed on Jan 12"
-  }
-];
+type Complaint = Database["public"]["Tables"]["complaints"]["Row"];
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const [complaints] = useState<Complaint[]>(mockComplaints);
+  const { user, loading: authLoading } = useAuth();
+  const [complaints, setComplaints] = useState<Complaint[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const getStatusColor = (status: ComplaintStatus) => {
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate("/student/login");
+    } else if (user) {
+      fetchComplaints();
+    }
+  }, [user, authLoading, navigate]);
+
+  const fetchComplaints = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('complaints')
+        .select('*')
+        .eq('user_id', user!.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setComplaints(data || []);
+    } catch (error: any) {
+      toast.error("Failed to load complaints");
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate("/");
+  };
+
+  const getStatusColor = (status: string) => {
     const colors = {
       submitted: "bg-muted text-muted-foreground",
       under_review: "bg-accent text-accent-foreground",
@@ -70,12 +67,20 @@ const Dashboard = () => {
   const activeComplaints = complaints.filter(c => c.status !== "closed" && c.status !== "resolved");
   const closedComplaints = complaints.filter(c => c.status === "closed" || c.status === "resolved");
 
+  if (authLoading || loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p className="text-xl">Loading...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b-2 border-foreground p-4 sticky top-0 bg-background z-10">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <h1 className="text-2xl font-bold">BROTOCARE</h1>
-          <Button variant="outline" onClick={() => navigate("/")}>
+          <Button variant="outline" onClick={handleLogout}>
             LOGOUT
           </Button>
         </div>
@@ -118,7 +123,7 @@ const Dashboard = () => {
                       </div>
                     </div>
                     <div className="text-sm text-muted-foreground whitespace-nowrap">
-                      {new Date(complaint.date).toLocaleDateString()}
+                      {new Date(complaint.created_at).toLocaleDateString()}
                     </div>
                   </div>
                 </Card>
@@ -154,7 +159,7 @@ const Dashboard = () => {
                       </div>
                     </div>
                     <div className="text-sm text-muted-foreground whitespace-nowrap">
-                      {new Date(complaint.date).toLocaleDateString()}
+                      {new Date(complaint.created_at).toLocaleDateString()}
                     </div>
                   </div>
                 </Card>
