@@ -1,70 +1,86 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
+import type { Database } from "@/integrations/supabase/types";
 
-type ComplaintStatus = "submitted" | "under_review" | "in_process" | "resolved" | "closed";
-
-interface Complaint {
-  id: string;
-  studentName: string;
-  studentId: string;
-  batchNumber: string;
-  title: string;
-  category: string;
-  priority: "low" | "medium" | "high";
-  status: ComplaintStatus;
-  date: string;
-  description: string;
-}
-
-const mockComplaints: Complaint[] = [
-  {
-    id: "1",
-    studentName: "John Doe",
-    studentId: "123456",
-    batchNumber: "B24",
-    title: "Hostel WiFi not working",
-    category: "Infrastructure",
-    priority: "high",
-    status: "in_process",
-    date: "2025-01-15",
-    description: "WiFi has been down for 3 days"
-  },
-  {
-    id: "2",
-    studentName: "Jane Smith",
-    studentId: "234567",
-    batchNumber: "B23",
-    title: "Need access to additional study materials",
-    category: "Academic",
-    priority: "medium",
-    status: "under_review",
-    date: "2025-01-14",
-    description: "Requesting DSA practice problems"
-  },
-  {
-    id: "3",
-    studentName: "Bob Johnson",
-    studentId: "345678",
-    batchNumber: "B24",
-    title: "Classroom AC not working",
-    category: "Infrastructure",
-    priority: "low",
-    status: "closed",
-    date: "2025-01-10",
-    description: "Fixed on Jan 12"
-  }
-];
+type Complaint = Database["public"]["Tables"]["complaints"]["Row"] & {
+  profiles: { first_name: string; last_name: string; student_id: string | null; batch_number: string | null } | null;
+};
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
-  const [complaints] = useState<Complaint[]>(mockComplaints);
+  const { user, loading: authLoading } = useAuth();
+  const [complaints, setComplaints] = useState<Complaint[]>([]);
+  const [loading, setLoading] = useState(true);
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [filterPriority, setFilterPriority] = useState<string>("all");
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate("/admin/login");
+    } else if (user) {
+      // Verify admin role
+      supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('role', 'admin')
+        .maybeSingle()
+        .then(({ data }) => {
+          if (!data) {
+            navigate("/admin/login");
+          } else {
+            fetchComplaints();
+          }
+        });
+    }
+  }, [user, authLoading, navigate]);
+
+  const fetchComplaints = async () => {
+    try {
+      const { data: complaintsData, error } = await supabase
+        .from('complaints')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      // Fetch profiles for each complaint
+      const enrichedComplaints = await Promise.all(
+        (complaintsData || []).map(async (complaint) => {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('first_name, last_name, student_id, batch_number')
+            .eq('id', complaint.user_id)
+            .single();
+
+          return {
+            ...complaint,
+            profiles: profile
+          };
+        })
+      );
+
+      setComplaints(enrichedComplaints as any);
+    } catch (error: any) {
+      toast.error("Failed to load complaints");
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate("/");
+  };
 
   const filteredComplaints = complaints.filter(c => {
     if (filterCategory !== "all" && c.category.toLowerCase() !== filterCategory) return false;
@@ -73,7 +89,7 @@ const AdminDashboard = () => {
     return true;
   });
 
-  const getStatusColor = (status: ComplaintStatus) => {
+  const getStatusColor = (status: string) => {
     const colors = {
       submitted: "bg-muted text-muted-foreground",
       under_review: "bg-accent text-accent-foreground",
@@ -97,12 +113,20 @@ const AdminDashboard = () => {
     high: complaints.filter(c => c.priority === "high").length
   };
 
+  if (authLoading || loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p className="text-xl">Loading...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b-2 border-foreground p-4 sticky top-0 bg-background z-10">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <h1 className="text-2xl font-bold">BROTOCARE ADMIN</h1>
-          <Button variant="outline" onClick={() => navigate("/")}>
+          <Button variant="outline" onClick={handleLogout}>
             LOGOUT
           </Button>
         </div>
@@ -203,13 +227,13 @@ const AdminDashboard = () => {
                     <p className="text-sm text-muted-foreground mb-2">{complaint.description}</p>
                   </div>
                   <div className="text-sm text-muted-foreground whitespace-nowrap">
-                    {new Date(complaint.date).toLocaleDateString()}
+                    {new Date(complaint.created_at).toLocaleDateString()}
                   </div>
                 </div>
                 <div className="flex gap-4 flex-wrap text-sm border-t pt-3">
-                  <span><strong>Student:</strong> {complaint.studentName}</span>
-                  <span><strong>ID:</strong> {complaint.studentId}</span>
-                  <span><strong>Batch:</strong> {complaint.batchNumber}</span>
+                  <span><strong>Student:</strong> {complaint.profiles?.first_name} {complaint.profiles?.last_name}</span>
+                  <span><strong>ID:</strong> {complaint.profiles?.student_id || 'N/A'}</span>
+                  <span><strong>Batch:</strong> {complaint.profiles?.batch_number || 'N/A'}</span>
                   <span><strong>Category:</strong> {complaint.category}</span>
                   <span><strong>Priority:</strong> {complaint.priority.toUpperCase()}</span>
                 </div>
