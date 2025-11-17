@@ -1,25 +1,57 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 const Login = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (user) {
+      navigate("/student/dashboard");
+    }
+  }, [user, navigate]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
 
-    // Demo login
-    if (email === "user@brototype.com" && password === "user@2000") {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) throw error;
+
+      // Check if user has student role
+      const { data: roleData } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', data.user.id)
+        .single();
+
+      if (roleData?.role !== 'student') {
+        await supabase.auth.signOut();
+        toast.error("Access denied. Student account required.");
+        return;
+      }
+
       toast.success("Login successful!");
       navigate("/student/dashboard");
-    } else {
-      toast.error("Invalid credentials");
+    } catch (error: any) {
+      toast.error(error.message || "Invalid credentials");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -55,15 +87,12 @@ const Login = () => {
             />
           </div>
 
-          <Button type="submit" className="w-full" size="lg">
-            LOGIN
+          <Button type="submit" className="w-full" size="lg" disabled={loading}>
+            {loading ? "LOGGING IN..." : "LOGIN"}
           </Button>
         </form>
 
         <div className="text-center space-y-2">
-          <p className="text-sm text-muted-foreground">
-            Demo: user@brototype.com / user@2000
-          </p>
           <p className="text-sm text-muted-foreground">
             Don't have an account?{" "}
             <button
